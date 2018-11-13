@@ -3,7 +3,12 @@ from io import BytesIO
 from math import log, exp, tan, atan, ceil
 from PIL import Image
 import sys
-
+from math import radians, cos, sin, asin, sqrt
+import numpy 
+import math
+import cv2
+import imutils
+from skimage.measure import compare_ssim
 
 # circumference/radius
 tau = 6.283185307179586
@@ -21,6 +26,29 @@ MAXSIZE = 640
 # logo height in pixels is assumed to be less than this amount.
 LOGO_CUTOFF = 32
 
+def area(): 
+    lon1 = radians(nwlong) 
+    lon2 = radians(selong) 
+    lat1 = radians(nwlat) 
+    lat2 = radians(selat)
+    dlon = 0 
+    dlat = lat2 - lat1 
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2 #haversine
+    c = 2 * asin(sqrt(a))  
+    len=c #length
+    dlon = lon2 - lon1  
+    dlat = 0
+    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+    c = 2 * asin(sqrt(a))  #breadth
+    print('area of land between coordinates :{}Km sqaure'.format(round(c*len*40589641,3)))
+
+def psnr(img1, img2):
+    mse = numpy.mean( (img1 - img2) ** 2 )
+    if mse == 0:
+        return 100
+    PIXEL_MAX = 255.0
+    return 20 * math.log10(PIXEL_MAX / math.sqrt(mse))
+    
 
 def latlon2pixels(lat, lon, zoom):
     mx = lon
@@ -47,12 +75,10 @@ def get_maps_image(NW_lat_long, SE_lat_long, zoom=18):
     # convert all these coordinates to pixels
     ulx, uly = latlon2pixels(ullat, ullon, zoom)
     lrx, lry = latlon2pixels(lrlat, lrlon, zoom)
-    print(ulx,uly)
-    print(lrx,lry)
+  
 
     # calculate total pixel dimensions of final image
     dx, dy = lrx - ulx, uly - lry
-    print(dx,dy)
     # calculate rows and columns
     cols, rows = ceil(dx/MAXSIZE), ceil(dy/MAXSIZE)
 
@@ -97,23 +123,54 @@ def get_maps_image(NW_lat_long, SE_lat_long, zoom=18):
     return final
 
 if __name__ == '__main__':
-    nwlat=float(input('Enter Northwest latitude'))
-    nwlong=float(input('Enter Northwest longitude'))
-    selat=float(input('Enter Southeast latitude'))
-    selong=float(input('Enter Southeast longitude'))
+    nwlat=float(input('Enter Northwest latitude:'))
+    nwlong=float(input('Enter Northwest longitude:'))
+    selat=float(input('Enter Southeast latitude:'))
+    selong=float(input('Enter Southeast longitude:'))
 
     if((nwlat<=selat)or(selong<=nwlong)):
+        print('wrong coordinates')
         exit(1)
+    else :
+        area()
 
     NW_lat_long =(nwlat*DEGREE,nwlong*DEGREE)
     SE_lat_long =(selat*DEGREE,selong*DEGREE)
-    print(NW_lat_long)
-    print(SE_lat_long)
 
-    zoom = 18  # be careful not to get too many images!
+
+    zoom = 18  
 
     result = get_maps_image(NW_lat_long, SE_lat_long, zoom=18)
     result.show()
     result.save('map.png')
+    im = Image.open("map.png")
+ 
+    grayA = cv2.imread("a.png",0)
+    grayB = cv2.imread("b.png",0)
+
+    (score, diff) = compare_ssim(grayA, grayB, full=True)
+    diff = (diff * 255).astype("uint8")
+    if(score==1.0):
+        print('no difference in images')
+    else:
+        print('difference in image detected')
+    print("similarity in image : {}%".format(round(score*100),3))
+    thresh = cv2.threshold(diff, 0, 255,
+	cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
+	cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+    grayB = cv2.imread("b.png")
 
 
+# loop over the contours
+    for c in cnts:
+	# compute the bounding box of the contour and then draw the
+	# bounding box on both input images to represent where the two
+	# images differ
+	    (x, y, w, h) = cv2.boundingRect(c)
+	    cv2.rectangle(grayB, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+# show the output images
+    cv2.imwrite("new.png", grayB)
+      
