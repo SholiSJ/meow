@@ -152,25 +152,32 @@ if __name__ == '__main__':
     diff = (diff * 255).astype("uint8")
     if(score==1.0):
         print('no difference in images')
+        exit(2)
     else:
         print('difference in image detected')
-    print("similarity in image : {}%".format(round(score*100),3))
+        print("similarity in image : {}%".format(score*100))
     thresh = cv2.threshold(diff, 0, 255,
 	cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
     cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,
 	cv2.CHAIN_APPROX_SIMPLE)
     cnts = cnts[0] if imutils.is_cv2() else cnts[1]
     grayB = cv2.imread("b.png")
+    i=len(cnts)
+    print('Number of Changes Detected:{}'.format(i))
+    i=1
 
-
-# loop over the contours
     for c in cnts:
-	# compute the bounding box of the contour and then draw the
-	# bounding box on both input images to represent where the two
-	# images differ
-	    (x, y, w, h) = cv2.boundingRect(c)
-	    cv2.rectangle(grayB, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        (x, y, w, h) = cv2.boundingRect(c)
+        cv2.rectangle(grayB, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        a,b=pixels2latlon(x+int(w/2),y+int(h/2),zoom)
+        a=a/DEGREE
+        b=b/DEGREE
+        a=(nwlat-a)
+        b=(nwlong+b)
+        a=round(a,6)
+        b=round(b,6)
+        print('Location of change{}:{},{}'.format(i,a,b))
 
-# show the output images
     cv2.imwrite("new.png", grayB)
-      
+    detectedImg=Image.open("new.png")  
+    detectedImg.show()    
